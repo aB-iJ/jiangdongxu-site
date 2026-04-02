@@ -1,0 +1,79 @@
+{{ define "main" }}
+<script>document.body.classList.add('lock-scroll');</script>
+
+<!-- K线仪表盘（左上角） -->
+<div id="dashboard">
+    <div class="tab-group">
+        <div class="tab active" onclick="setIdx('CSI500')">中证500 (SIM)</div>
+        <div class="tab" onclick="setIdx('NASDAQ')">纳斯达克 (SIM)</div>
+    </div>
+    <div class="price-row">
+        <div class="main-p" id="p-val">--</div>
+        <div class="change" id="p-chg">--</div>
+    </div>
+    <div style="font-size: 10px; color: #555; border-top: 1px solid #222; padding-top: 8px;">MARKET STATUS: OPENING</div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<div class="ui-overlay">
+    <div class="glass-card">
+        <h1>{{ .Site.Title }}</h1>
+        <div class="sub">{{ .Site.Params.subtitle }}</div>
+        
+        <div class="btn-group">
+            <div class="icon-btn" onclick="pop('微信', '{{ .Site.Params.wechat }}')"><b>WeChat</b></div>
+            <div class="icon-btn" onclick="pop('QQ', '{{ .Site.Params.qq }}')"><b>QQ</b></div>
+            <div class="icon-btn" onclick="pop('Email', '{{ .Site.Params.email }}')"><b>Email</b></div>
+            <div class="icon-btn" onclick="window.open('https://github.com/{{ .Site.Params.github }}')"><b>Github</b></div>
+        </div>
+
+        <div class="slogan-bar">
+            {{ .Site.Params.description }}
+        </div>
+
+        <div class="hobby-group">
+            <div class="hobby-capsule">Quant</div>
+            <div class="hobby-capsule">Python</div>
+            <div class="hobby-capsule">Fit</div>
+        </div>
+    </div>
+</div>
+
+<!-- 博客入口传送门 -->
+<a href="/posts/" class="side-portal">
+    <div class="portal-inner">
+        <span class="portal-icon">🚀</span>
+        <span class="portal-text">个人博客</span>
+        <span class="portal-light"></span>
+    </div>
+</a>
+
+<div class="footer-container">
+    <div>
+        <div>Financial Engineering @ DUFE</div>
+        <div class="footer-en">Dongbei University of Finance and Economics</div>
+    </div>
+    <div style="text-align: right;">
+        <div>Artificial Intelligence @ NUAA</div>
+        <div class="footer-en">Nanjing University of Aeronautics and Astronautics</div>
+    </div>
+</div>
+
+<!-- 弹窗 -->
+<div id="pop" onclick="this.style.display='none'">
+    <div class="modal-box">
+        <h2 id="pop-t" style="color:var(--accent-color); letter-spacing: 2px;"></h2>
+        <p id="pop-c" style="font-size: 24px; margin: 30px 0; font-family: 'JetBrains Mono', monospace;"></p>
+        <div style="font-size: 11px; color: #444; text-transform: uppercase;">Click anywhere to return</div>
+    </div>
+</div>
+
+<script>
+function pop(t, c) {
+    document.getElementById('pop-t').innerText = t;
+    document.getElementById('pop-c').innerText = c;
+    document.getElementById('pop').style.display = 'flex';
+}
+</script>
+{{ end }}

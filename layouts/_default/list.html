@@ -1,0 +1,96 @@
+{{ define "main" }}
+<div id="overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;">
+    
+    <h1 style="margin-bottom: 1rem; font-size: 2.5rem;">文章列表</h1>
+    
+    <!-- 搜索框 -->
+    <div style="margin-bottom: 1.5rem;">
+        <input type="text" id="search-input" placeholder="🔍 搜索文章标题或内容片段..." 
+               style="width: 100%; padding: 12px 20px; border-radius: 30px; border: 1px solid rgba(0,242,255,0.3); background: rgba(10,10,10,0.6); color: #fff; font-size: 1rem; outline: none; box-sizing: border-box; backdrop-filter: blur(10px); transition: all 0.3s;">
+    </div>
+    
+    <!-- 标签云 -->
+    <div class="tag-cloud-container filterable" id="filter-tags" style="margin-bottom: 2rem; display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;">
+        {{ range $name, $taxonomy := .Site.Taxonomies.tags }}
+            <div class="tag-combo active" data-tag="{{ $name | lower }}" style="cursor: pointer;">
+                <span class="t-name">{{ $name }}</span>
+                <span class="t-count">{{ $taxonomy.Count }}</span>
+            </div>
+        {{ end }}
+    </div>
+
+    <!-- 文章列表 -->
+    <div class="posts-container" id="posts-list" style="max-height: 55vh; overflow-y: auto; padding: 0.5rem 1rem; text-align: left;">
+        {{ range .Pages }}
+            <div class="post-item" 
+                 data-tags="{{ delimit (apply .Params.tags "lower" ".") " " }}"
+                 data-content="{{ .Summary | plainify | lower | htmlEscape }}">
+                <a href="{{ .RelPermalink }}" style="color: var(--accent-color); font-size: 1.1rem; text-decoration: none; display: block; margin-bottom: 6px; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--accent-color)'">
+                    {{ .Title | default "未命名文章" }}
+                </a>
+                {{ $words := .WordCount }}
+                {{ $readTime := (div $words 200) }}
+                {{ if gt (len (findRE "```" .RawContent)) 0 }}
+                    {{ $readTime = (add $readTime (mul (len (findRE "```" .RawContent)) 1)) }}
+                {{ end }}
+                {{ if lt $readTime 1 }}{{ $readTime = 1 }}{{ end }}
+                <span style="color: #666; font-size: 0.8rem;">📅 {{ .Date.Format "2006-01-02" }} | ⏱️ {{ $readTime }} min</span>
+                <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;">
+                    {{ range .Params.tags }}
+                    <span style="font-size: 0.7rem; color: rgba(0,242,255,0.6); padding: 2px 8px; border-radius: 12px; background: rgba(0,242,255,0.05); border: 1px solid rgba(0,242,255,0.1);">#{{ . }}</span>
+                    {{ end }}
+                </div>
+            </div>
+        {{ end }}
+    </div>
+
+    <div style="margin-top: 2rem;">
+        <a href="/" class="btn-back">← 返回首页</a>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search-input');
+    const tags = document.querySelectorAll('#filter-tags .tag-combo');
+    const posts = document.querySelectorAll('#posts-list .post-item');
+
+    searchInput.addEventListener('focus', function() {
+        this.style.boxShadow = '0 0 15px rgba(0,242,255,0.4)';
+        this.style.borderColor = 'var(--accent-color)';
+    });
+    searchInput.addEventListener('blur', function() {
+        this.style.boxShadow = 'none';
+        this.style.borderColor = 'rgba(0,242,255,0.3)';
+    });
+
+    function updatePosts() {
+        const activeTags = Array.from(document.querySelectorAll('#filter-tags .tag-combo.active'))
+                               .map(t => t.dataset.tag);
+        const q = searchInput.value.toLowerCase().trim();
+
+        posts.forEach(post => {
+            const postTags = post.dataset.tags.split(' ');
+            let matchTag = activeTags.length === 0 || activeTags.some(t => postTags.includes(t));
+            let matchSearch = !q || (post.dataset.content + ' ' + post.innerText).toLowerCase().includes(q);
+            post.classList.toggle('hidden-post', !(matchTag && matchSearch));
+        });
+    }
+
+    searchInput.addEventListener('input', updatePosts);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetTag = urlParams.get('tag')?.toLowerCase();
+    if (targetTag) {
+        tags.forEach(t => t.classList.remove('active'));
+        const el = document.querySelector(`#filter-tags .tag-combo[data-tag="${targetTag}"]`);
+        if (el) el.classList.add('active');
+    }
+    updatePosts();
+
+    tags.forEach(tag => {
+        tag.addEventListener('click', () => { tag.classList.toggle('active'); updatePosts(); });
+    });
+});
+</script>
+{{ end }}

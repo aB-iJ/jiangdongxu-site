@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Site.Title }}</title>
+    
+    {{ $style := resources.Get "css/main.css" | minify | fingerprint }}
+    <link rel="stylesheet" href="{{ $style.RelPermalink }}">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            if (typeof renderMathInElement !== 'undefined') {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false,
+                    ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code", "a"]
+                });
+            }
+        });
+    </script>
+    
+    <style>
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #050508;
+            z-index: 999999;
+            pointer-events: none;
+            animation: pageReveal 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+        }
+        @keyframes pageReveal {
+            0% { opacity: 1; backdrop-filter: blur(10px); }
+            100% { opacity: 0; backdrop-filter: blur(0px); visibility: hidden; }
+        }
+        body.page-fade-out::after {
+            visibility: visible;
+            animation: pageHide 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards !important;
+        }
+        @keyframes pageHide {
+            0% { opacity: 0; backdrop-filter: blur(0px); }
+            100% { opacity: 1; backdrop-filter: blur(10px); }
+        }
+    </style>
+</head>
+<body>
+    {{ block "main" . }}{{ end }}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    if (this.hostname === window.location.hostname && 
+                        this.target !== '_blank' && 
+                        !this.hasAttribute('download') && 
+                        !this.getAttribute('href').startsWith('#') &&
+                        !this.href.includes('#')) {
+                        e.preventDefault();
+                        document.body.classList.add('page-fade-out');
+                        setTimeout(() => { window.location.href = this.href; }, 350);
+                    }
+                });
+            });
+        });
+    </script>
+    
+    {{ $js := resources.Get "js/kline-bg.js" | minify | fingerprint }}
+    <script src="{{ $js.RelPermalink }}"></script>
+</body>
+</html>

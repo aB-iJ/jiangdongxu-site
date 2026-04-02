@@ -1,0 +1,192 @@
+{{ define "main" }}
+<!-- 阅读进度条 -->
+<div id="progress-container" style="position: fixed; top: 0; left: 0; width: 100%; height: 3px; background: rgba(255,255,255,0.05); z-index: 9999;">
+    <div id="reading-progress" style="height: 100%; width: 0%; background: linear-gradient(90deg, #00f2ff, #f6465d); box-shadow: 0 0 10px #00f2ff; transition: width 0.1s;"></div>
+</div>
+
+<!-- 侧边目录 -->
+<nav class="toc-container" id="toc-main">
+    <div class="toc-toggle" id="toc-toggler" title="折叠/展开目录">
+        <span class="icon">❮</span>
+    </div>
+    <div class="toc-inner">
+        <div class="toc-title"><span>📜 章节目录</span></div>
+        <div id="TableOfContents">{{ .TableOfContents }}</div>
+    </div>
+</nav>
+
+<div id="post-container" style="position: relative; z-index: 2; padding: 60px 10% 100px 10%; max-width: 900px; margin: 0 auto;">
+    
+    <div style="margin-bottom: 2rem;">
+        <a href="/posts/" class="nav-back">← 返回文章列表</a>
+    </div>
+
+    <h1 class="post-title" id="post-title-main">{{ .Title }}</h1>
+
+    <div class="post-tags" style="margin: 1rem 0 2rem 0; display: flex; gap: 10px; flex-wrap: wrap;">
+        {{ range .Params.tags }}
+            <a href="/posts/?tag={{ . | lower }}" class="tag" style="text-decoration: none; font-size: 0.8rem;"># {{ . }}</a>
+        {{ end }}
+    </div>
+
+    <div class="post-meta" style="color: #666; margin: 1rem 0 3rem 0; font-size: 0.9rem; display: flex; gap: 15px; flex-wrap: wrap;">
+        <span>📅 {{ .Date.Format "2006-01-02" }}</span>
+        <span style="color: rgba(255,255,255,0.2);">|</span>
+        <span>🔄 {{ .Lastmod.Format "2006-01-02" }}</span>
+        <span style="color: rgba(255,255,255,0.2);">|</span>
+        {{ $words := .WordCount }}
+        {{ $readTime := (div $words 200) }}
+        {{ if gt (len (findRE "```" .RawContent)) 0 }}
+            {{ $readTime = (add $readTime (mul (len (findRE "```" .RawContent)) 1)) }}
+        {{ end }}
+        {{ if lt $readTime 1 }}{{ $readTime = 1 }}{{ end }}
+        <span>⏱️ {{ $readTime }} min ({{ $words }} 字)</span>
+    </div>
+    
+    <article class="markdown-content">{{ .Content }}</article>
+
+    <!-- 评论系统 -->
+    <div style="margin-top: 4rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 2rem;">
+        <h3 style="color: var(--accent-color); margin-bottom: 1rem;">留言与评论</h3>
+        <script src="https://utteranc.es/client.js"
+                repo="aB-iJ/aB-iJ.github.io"
+                issue-term="pathname"
+                theme="photon-dark"
+                crossorigin="anonymous"
+                async>
+        </script>
+    </div>
+
+    <!-- 回到顶部 -->
+    <button id="back-to-top">↑ Top</button>
+
+    <div style="margin-top: 3rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 2rem;">
+        <a href="/posts/" class="btn-back">← 返回列表</a>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 代码块：行号 + 复制按钮
+    document.querySelectorAll('.markdown-content pre').forEach(function(pre) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'code-wrapper';
+        pre.parentNode.insertBefore(wrapper, pre);
+        
+        const codeEl = pre.querySelector('code');
+        const codeText = (codeEl ? codeEl.textContent : pre.textContent).replace(/\n$/, '');
+        const lines = codeText.split('\n');
+        
+        const lineNums = document.createElement('div');
+        lineNums.className = 'pre-line-numbers';
+        lineNums.style.whiteSpace = 'pre';
+        lineNums.innerText = Array.from({length: lines.length}, (_, i) => i + 1).join('\n');
+        
+        const codeContent = document.createElement('div');
+        codeContent.className = 'pre-code-content';
+        codeContent.style.whiteSpace = 'pre';
+        while (pre.firstChild) codeContent.appendChild(pre.firstChild);
+        
+        pre.appendChild(lineNums);
+        pre.appendChild(codeContent);
+        wrapper.appendChild(pre);
+        pre.style.margin = '0';
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.innerHTML = '📋 复制';
+        copyBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(codeText).then(() => {
+                copyBtn.innerHTML = '✨ 已复制!';
+                copyBtn.classList.add('copied');
+                setTimeout(() => { copyBtn.innerHTML = '📋 复制'; copyBtn.classList.remove('copied'); }, 2000);
+            });
+        });
+        wrapper.appendChild(copyBtn);
+    });
+
+    // TOC
+    const tocLinks = document.querySelectorAll('#TableOfContents a');
+    const headers = document.querySelectorAll('.markdown-content h1, .markdown-content h2, .markdown-content h3');
+    const tocInner = document.querySelector('.toc-inner');
+    const tocContainer = document.getElementById('toc-main');
+    const tocToggler = document.getElementById('toc-toggler');
+
+    if (tocToggler && tocContainer) {
+        tocToggler.addEventListener('click', () => {
+            tocContainer.classList.toggle('collapsed');
+            localStorage.setItem('toc-collapsed', tocContainer.classList.contains('collapsed'));
+        });
+        if (localStorage.getItem('toc-collapsed') === 'true' || window.innerWidth < 1200)
+            tocContainer.classList.add('collapsed');
+    }
+
+    let isTOCScrolling = false, tocTimer = null;
+    tocLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            isTOCScrolling = true;
+            clearTimeout(tocTimer);
+            tocTimer = setTimeout(() => isTOCScrolling = false, 1000);
+        });
+    });
+
+    const backBtn = document.getElementById('back-to-top');
+    const progressBar = document.getElementById('reading-progress');
+
+    window.addEventListener('scroll', () => {
+        let current = "";
+        headers.forEach(h => { if (h.getBoundingClientRect().top <= 160) current = h.id; });
+        if (current) {
+            tocLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.classList.add('active');
+                    if (tocInner && !isTOCScrolling) {
+                        const rect = tocInner.getBoundingClientRect();
+                        const linkRect = link.getBoundingClientRect();
+                        tocInner.scrollTo({ top: linkRect.top - rect.top + tocInner.scrollTop - tocInner.clientHeight/2, behavior: 'smooth' });
+                    }
+                }
+            });
+        }
+        const pct = (document.documentElement.scrollTop / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+        if (progressBar) progressBar.style.width = pct + '%';
+        if (backBtn) backBtn.style.display = window.scrollY > 300 ? 'block' : 'none';
+    });
+
+    if (backBtn) backBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+    // 打字机标题
+    const titleEl = document.getElementById('post-title-main');
+    if (titleEl) {
+        const text = titleEl.innerText;
+        titleEl.innerHTML = "";
+        let i = 0;
+        const cursor = document.createElement('span');
+        cursor.className = 'typing-dot';
+        titleEl.after(cursor);
+        function typeWriter() {
+            if (i < text.length) { titleEl.innerText += text.charAt(i); i++; setTimeout(typeWriter, 50); }
+            else setTimeout(() => { cursor.style.transition='opacity 0.5s'; cursor.style.opacity='0'; setTimeout(() => cursor.remove(), 500); }, 1500);
+        }
+        setTimeout(typeWriter, 500);
+    }
+
+    // 图片 Lightbox
+    document.querySelectorAll('.markdown-content img').forEach(img => {
+        img.style.cursor = 'zoom-in';
+        img.addEventListener('click', () => {
+            const ov = document.createElement('div');
+            Object.assign(ov.style, { position:'fixed', top:0, left:0, width:'100vw', height:'100vh', backgroundColor:'rgba(0,0,0,0.85)', backdropFilter:'blur(5px)', zIndex:10000, display:'flex', justifyContent:'center', alignItems:'center', cursor:'zoom-out', opacity:0, transition:'opacity 0.3s' });
+            const zi = document.createElement('img');
+            zi.src = img.src;
+            Object.assign(zi.style, { maxWidth:'90%', maxHeight:'90%', borderRadius:'5px', boxShadow:'0 0 30px rgba(0,242,255,0.5)', transform:'scale(0.9)', transition:'transform 0.3s' });
+            ov.appendChild(zi);
+            document.body.appendChild(ov);
+            requestAnimationFrame(() => { ov.style.opacity='1'; zi.style.transform='scale(1)'; });
+            ov.addEventListener('click', () => { ov.style.opacity='0'; zi.style.transform='scale(0.9)'; setTimeout(() => ov.remove(), 300); });
+        });
+    });
+});
+</script>
+{{ end }}
