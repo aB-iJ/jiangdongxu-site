@@ -54,7 +54,7 @@
 
   <div class="api-config" id="apiConfig" style="display:none">
     <span>Mac 地址：</span>
-    <input type="text" id="apiUrl" value="http://192.168.10.179:8899" onchange="checkConnection()">
+    <input type="text" id="apiUrl" value="https://www.jiangdongxu.online" onchange="checkConnection()">
     <button class="btn btn-ctrl" onclick="checkConnection()">重试连接</button>
   </div>
 
@@ -93,9 +93,9 @@ const cfgDiv = document.getElementById('apiConfig');
 
 // 自动检测 Mac 服务器
 const CANDIDATES = [
+  'https://www.jiangdongxu.online',
   'http://192.168.10.179:8899',
-  'http://127.0.0.1:8899',
-  'http://localhost:8899'
+  'http://127.0.0.1:8899'
 ];
 
 async function checkConnection(customUrl) {
