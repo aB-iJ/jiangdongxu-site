@@ -1,0 +1,323 @@
+{{ define "main" }}
+<style>
+.drop-container{max-width:720px;margin:0 auto;padding:40px 24px}
+.drop-container h1{font-size:28px;text-align:center;margin-bottom:4px}
+.drop-subtitle{text-align:center;color:var(--text-secondary);font-size:13px;margin-bottom:8px}
+.drop-status{text-align:center;font-size:12px;margin-bottom:28px;padding:6px 16px;border-radius:8px;display:inline-block}
+.drop-status.connected{background:rgba(14,203,129,.12);color:var(--down-color)}
+.drop-status.disconnected{background:rgba(246,69,93,.12);color:var(--up-color)}
+.drop-status.connecting{background:rgba(255,193,7,.12);color:#ffc107}
+.dropzone{border:2px dashed var(--card-border);border-radius:16px;padding:50px 20px;text-align:center;transition:all .2s;cursor:pointer;margin-bottom:20px}
+.dropzone.drag{border-color:var(--accent);background:rgba(0,242,255,.06)}
+.dropzone .icon{font-size:40px;margin-bottom:8px}
+.dropzone .hint{font-size:14px;color:var(--text-secondary)}
+.dropzone .hint b{color:var(--accent)}
+.dropzone .hint2{font-size:11px;color:var(--text-secondary);margin-top:6px;opacity:.6}
+.progress-wrap{display:none;margin-top:12px;background:var(--card-border);border-radius:6px;height:6px;overflow:hidden}
+.progress-bar{height:100%;background:var(--down-color);border-radius:6px;width:0;transition:width .2s}
+.progress-text{display:none;text-align:center;font-size:11px;color:var(--text-secondary);margin-top:4px}
+.toolbar{display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
+.toolbar .count{font-size:13px;color:var(--text-secondary);margin-right:auto}
+.file-list{background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;overflow:hidden}
+.file-row{display:flex;align-items:center;padding:8px 14px;border-bottom:1px solid var(--card-border);transition:background .15s;gap:8px}
+.file-row:last-child{border-bottom:none}
+.file-row:hover{background:rgba(255,255,255,.03)}
+.file-icon{width:30px;text-align:center;font-size:16px;flex-shrink:0}
+.file-name{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;color:var(--text-primary)}
+.file-dir{color:var(--accent);font-size:11px;margin-right:4px}
+.file-size{color:var(--text-secondary);font-size:11px;white-space:nowrap;min-width:70px;text-align:right}
+.file-actions{display:flex;gap:4px;flex-shrink:0}
+.btn{padding:4px 10px;border-radius:6px;border:1px solid var(--card-border);font-size:11px;cursor:pointer;font-weight:500;transition:all .15s;background:transparent;color:var(--text-secondary)}
+.btn-dl{background:var(--accent);color:var(--bg-color);border-color:var(--accent)}
+.btn-dl:hover{filter:brightness(1.2)}
+.btn-del:hover{background:var(--up-color);color:#fff;border-color:var(--up-color)}
+.btn-ctrl:hover{background:var(--accent);color:var(--bg-color);border-color:var(--accent)}
+.folder-header{display:flex;align-items:center;padding:8px 14px;background:rgba(0,242,255,.04);border-bottom:1px solid var(--card-border);font-size:12px;color:var(--accent);font-weight:600;gap:6px;cursor:pointer;user-select:none}
+.folder-header .arrow{transition:transform .2s;font-size:10px}
+.folder-header.collapsed .arrow{transform:rotate(-90deg)}
+.folder-body{overflow:hidden;transition:max-height .3s}
+.folder-body.collapsed{max-height:0!important}
+.empty{padding:40px;text-align:center;color:var(--text-secondary);font-size:14px}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--down-color);color:var(--bg-color);padding:10px 24px;border-radius:10px;font-size:14px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.error{background:var(--up-color);color:#fff}
+.api-config{display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:12px;color:var(--text-secondary);flex-wrap:wrap}
+.api-config input{background:var(--card-bg);border:1px solid var(--card-border);color:var(--text-primary);padding:4px 10px;border-radius:6px;font-size:12px;width:220px;font-family:monospace}
+</style>
+
+<div class="drop-container">
+  <h1>🫳 DropDrop</h1>
+  <p class="drop-subtitle">拖文件/文件夹 → 自动拆解 → 任何设备都能下载</p>
+  <div style="text-align:center">
+    <span class="drop-status connecting" id="status">⏳ 连接 Mac 中...</span>
+  </div>
+
+  <div class="api-config" id="apiConfig" style="display:none">
+    <span>Mac 地址：</span>
+    <input type="text" id="apiUrl" value="http://192.168.10.179:8899" onchange="checkConnection()">
+    <button class="btn btn-ctrl" onclick="checkConnection()">重试连接</button>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <div class="icon">📂</div>
+    <div class="hint">拖拽 <b>文件</b> 或 <b>文件夹</b> 到这里</div>
+    <div class="hint2">支持文件夹 — 自动拆成单个文件保留目录结构</div>
+  </div>
+  <input type="file" id="fileInput" multiple hidden>
+  <input type="file" id="folderInput" webkitdirectory hidden>
+  <div class="progress-wrap" id="progressWrap"><div class="progress-bar" id="progressBar"></div></div>
+  <div class="progress-text" id="progressText"></div>
+
+  <div class="toolbar">
+    <span class="count" id="fileCount">0 个文件</span>
+    <button class="btn btn-ctrl" onclick="document.getElementById('folderInput').click()">📁 选文件夹</button>
+    <button class="btn btn-ctrl" onclick="document.getElementById('fileInput').click()">📄 选文件</button>
+    <button class="btn btn-del" onclick="clearAll()">清空</button>
+  </div>
+
+  <div class="file-list">
+    <div id="fileList"><div class="empty">还没有文件，拖一个进来试试</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let API = '';
+let files = [];
+let expandedFolders = {};
+let serverHost = '';
+
+const cfgInput = document.getElementById('apiUrl');
+const cfgDiv = document.getElementById('apiConfig');
+
+// 自动检测 Mac 服务器
+const CANDIDATES = [
+  'http://192.168.10.179:8899',
+  'http://127.0.0.1:8899',
+  'http://localhost:8899'
+];
+
+async function checkConnection(customUrl) {
+  const urls = customUrl ? [customUrl] : [...CANDIDATES];
+  const status = document.getElementById('status');
+  status.textContent = '⏳ 连接 Mac 中...';
+  status.className = 'drop-status connecting';
+
+  for (const url of urls) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 2000);
+      const r = await fetch(url + '/api/ping', {signal: ctrl.signal});
+      clearTimeout(t);
+      if (r.ok) {
+        const data = await r.json();
+        API = url;
+        serverHost = data.host || url;
+        cfgInput.value = API;
+        status.textContent = '🟢 已连接 (' + serverHost + ')';
+        status.className = 'drop-status connected';
+        cfgDiv.style.display = 'none';
+        loadFiles();
+        return;
+      }
+    } catch(e) {}
+  }
+  status.textContent = '🔴 未连接到 Mac（请确保在同一WiFi下且DropDrop已运行）';
+  status.className = 'drop-status disconnected';
+  cfgDiv.style.display = 'flex';
+}
+
+function fmtSize(bytes) {
+  if(bytes < 1024) return bytes + ' B';
+  if(bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  if(bytes < 1073741824) return (bytes/1048576).toFixed(1) + ' MB';
+  return (bytes/1073741824).toFixed(2) + ' GB';
+}
+
+async function loadFiles() {
+  if (!API) return;
+  try {
+    const r = await fetch(API + '/api/files');
+    files = await r.json();
+    renderFiles();
+  } catch(e) {}
+}
+
+function renderFiles() {
+  const el = document.getElementById('fileList');
+  document.getElementById('fileCount').textContent = files.length + ' 个文件';
+  if (!files.length) {
+    el.innerHTML = '<div class="empty">还没有文件，拖文件或文件夹进来试试</div>';
+    return;
+  }
+  const groups = {};
+  const roots = [];
+  for (const f of files) {
+    const parts = f.name.split('/');
+    if (parts.length === 1) { roots.push(f); }
+    else {
+      const dir = parts.slice(0, -1).join('/');
+      if (!groups[dir]) groups[dir] = [];
+      groups[dir].push(f);
+    }
+  }
+  let html = '';
+  for (const f of roots) html += fileRow(f, '');
+  const sortedDirs = Object.keys(groups).sort();
+  for (const dir of sortedDirs) {
+    const collapsed = expandedFolders[dir] === false;
+    const cls = collapsed ? 'collapsed' : '';
+    const count = groups[dir].length;
+    html += `<div class="folder-header ${cls}" onclick="toggleFolder('${esc(dir)}')">
+      <span class="arrow">▼</span>📁 <span class="file-dir">${escHtml(dir)}</span>
+      <span style="color:var(--text-secondary);margin-left:auto;font-size:10px;font-weight:400">${count} 个文件</span>
+      <span style="margin-left:6px"><button class="btn btn-ctrl" onclick="event.stopPropagation();downloadFolder('${esc(dir)}')">打包下载</button></span>
+    </div>`;
+    html += `<div class="folder-body ${cls}" style="max-height:${count*40+20}px">`;
+    for (const f of groups[dir]) html += fileRow(f, dir);
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function esc(s) { return s.replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toggleFolder(dir) { expandedFolders[dir] = expandedFolders[dir] === false ? true : false; renderFiles(); }
+
+function fileRow(f, dir) {
+  const display = dir ? f.name.slice(dir.length + 1) : f.name;
+  return `<div class="file-row">
+    <div class="file-icon">${iconFor(display)}</div>
+    <div class="file-name" title="${escHtml(f.name)}">${escHtml(display)}</div>
+    <div class="file-size">${fmtSize(f.size)}</div>
+    <div class="file-actions">
+      <button class="btn btn-dl" onclick="downloadFile('${esc(f.name)}')">下载</button>
+      <button class="btn btn-del" onclick="deleteFile('${esc(f.name)}')">删除</button>
+    </div>
+  </div>`;
+}
+
+function iconFor(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = {jpg:'🖼️',jpeg:'🖼️',png:'🖼️',gif:'🖼️',webp:'🖼️',svg:'🖼️',
+    mp4:'🎬',mov:'🎬',avi:'🎬',mkv:'🎬',
+    mp3:'🎵',wav:'🎵',flac:'🎵',aac:'🎵',
+    pdf:'📕',doc:'📝',docx:'📝',xls:'📊',xlsx:'📊',ppt:'📽️',pptx:'📽️',
+    'zip':'📦','rar':'📦','7z':'📦','tar':'📦','gz':'📦',
+    py:'🐍',js:'📜',ts:'📜',html:'🌐',css:'🎨',
+    json:'⚙️',xml:'⚙️',yml:'⚙️',yaml:'⚙️',md:'📖',txt:'📄'};
+  return map[ext] || '📄';
+}
+
+function downloadFile(name) { window.open(API + '/api/download/' + encodeURIComponent(name)); }
+function downloadFolder(dir) { window.open(API + '/api/download-zip/' + encodeURIComponent(dir)); }
+
+async function deleteFile(name) {
+  await fetch(API + '/api/delete/' + encodeURIComponent(name), {method:'DELETE'});
+  toast('已删除'); loadFiles();
+}
+
+async function clearAll() {
+  if(!confirm('确定要清空所有文件吗？')) return;
+  await fetch(API + '/api/clear', {method:'DELETE'});
+  toast('已清空'); loadFiles();
+}
+
+function toast(msg, err) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (err ? 'error' : '') + ' show';
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// 递归遍历文件夹
+async function traverseEntry(entry, path) {
+  if (entry.isFile) {
+    return new Promise(resolve => {
+      entry.file(file => { file._relativePath = path ? path + '/' + file.name : file.name; resolve(file); });
+    });
+  }
+  if (entry.isDirectory) {
+    const reader = entry.createReader();
+    const entries = await new Promise(resolve => {
+      const all = [];
+      function read() { reader.readEntries(results => { if (results.length) { all.push(...results); read(); } else resolve(all); }); }
+      read();
+    });
+    const sub = await Promise.all(entries.map(e => traverseEntry(e, path ? path + '/' + entry.name : entry.name)));
+    return sub.flat();
+  }
+  return [];
+}
+
+async function upload(fileList) {
+  if (!API) { toast('未连接到 Mac', true); return; }
+  const total = fileList.length;
+  let done = 0;
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('progressText').style.display = 'block';
+  for (const f of fileList) {
+    const form = new FormData();
+    const name = f._relativePath || f.webkitRelativePath || f.name;
+    form.append('file', f);
+    form.append('path', name);
+    try {
+      await fetch(API + '/api/upload', {method:'POST', body:form});
+    } catch(e) { toast('上传失败: ' + e.message, true); }
+    done++;
+    document.getElementById('progressBar').style.width = (done/total*100) + '%';
+    document.getElementById('progressText').textContent = '上传中... ' + done + '/' + total;
+  }
+  document.getElementById('progressWrap').style.display = 'none';
+  document.getElementById('progressText').style.display = 'none';
+  document.getElementById('progressBar').style.width = '0';
+  toast('✅ 全部上传完成 (' + total + ' 个文件)');
+  loadFiles();
+}
+
+// Drag & drop
+const dz = document.getElementById('dropzone');
+const input = document.getElementById('fileInput');
+const folderInput = document.getElementById('folderInput');
+
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => { dz.classList.remove('drag'); });
+dz.addEventListener('drop', async e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  const items = e.dataTransfer.items;
+  if (!items || !items.length) return;
+  const allFiles = [];
+  for (const item of items) {
+    const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+    if (entry) {
+      const result = await traverseEntry(entry, '');
+      allFiles.push(...(Array.isArray(result) ? result : [result]));
+    }
+  }
+  if (!allFiles.length && e.dataTransfer.files.length) {
+    for (const f of e.dataTransfer.files) { f._relativePath = f.name; allFiles.push(f); }
+  }
+  if (allFiles.length) upload(allFiles);
+});
+dz.addEventListener('click', () => input.click());
+input.addEventListener('change', () => {
+  if (input.files.length) {
+    const arr = Array.from(input.files);
+    arr.forEach(f => { f._relativePath = f.name; });
+    upload(arr);
+  }
+  input.value = '';
+});
+folderInput.addEventListener('change', () => {
+  if (folderInput.files.length) {
+    const arr = Array.from(folderInput.files);
+    arr.forEach(f => { f._relativePath = f.webkitRelativePath || f.name; });
+    upload(arr);
+  }
+  folderInput.value = '';
+});
+
+checkConnection();
+</script>
+{{ end }}
